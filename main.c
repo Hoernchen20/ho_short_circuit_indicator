@@ -22,7 +22,7 @@
 /* Private define ----------------------------------------------------*/
 #define SENDER_PRIO (THREAD_PRIORITY_MAIN - 1)
 #define RECV_MSG_QUEUE (4U)
-#define ON_TIME_S 3
+#define ON_TIME_S 6
 #define RTC_SET_OLD_ALARM_DIFFERENCE 30
 #define PM_LOCK_LEVEL (1)
 
@@ -92,6 +92,8 @@ int main(void)
 {
     uint8_t number_join_tries = 0;
     uint8_t loramac_datarate = 0;
+
+    printf("Program: ho_short_circuit_indicator\nFW: 0.3\n");
 
     /* Init peripherie */
     init_unused_pins();
@@ -167,11 +169,14 @@ static void gpio_irq_cb(void *arg)
     (void) arg;
     msg_t msg;
 
-    disable_gpio_irq();
-    rtc_clear_alarm();
-    pm_block(PM_LOCK_LEVEL);
-    interrupt_active = true;
-    msg_send(&msg, sender_pid);
+    //trigger irq only once
+    if (interrupt_active == false) {
+        interrupt_active = true;
+        disable_gpio_irq();
+        rtc_clear_alarm();
+        pm_block(PM_LOCK_LEVEL);
+        msg_send(&msg, sender_pid);
+    }
 }
 
 static void rtc_cb(void *arg)
@@ -182,7 +187,6 @@ static void rtc_cb(void *arg)
     pm_block(PM_LOCK_LEVEL);
 
     msg_t msg;
-    //disable_gpio_irq();
     msg_send(&msg, sender_pid);
 }
 
@@ -206,7 +210,7 @@ static int prepare_next_alarm(enum RTC_SET_CMD cmd)
         uint32_t ts_time = mktime(&time);
         uint32_t ts_get_alarm = mktime(&get_alarm);
 
-        if (ts_time + RTC_SET_OLD_ALARM_DIFFERENCE < ts_get_alarm) {
+        if ( (ts_time + RTC_SET_OLD_ALARM_DIFFERENCE) < ts_get_alarm) {
             //old alarm
             memcpy(&set_alarm, &get_alarm, sizeof(struct tm));
         } else {
@@ -454,7 +458,7 @@ static uint8_t get_input_data(void)
     uint8_t j = 0;
     uint8_t port = 0;
     uint8_t key_state = 0;
-    puts("get input date:");
+    puts("get input data:");
 
     for (uint16_t i = 0; i < (GET_INPUT_DATA_TIME_S * MS_PER_SEC / GET_INPUT_DATA_SLEEP_TIME_MS); i++) {
         port = (
